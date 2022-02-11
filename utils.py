@@ -1,4 +1,7 @@
 import torch
+import matplotlib.pyplot as plt
+import numpy as np 
+from os.path import join as pjoin
 
 def accuracy(output, target, topk=(1,)):
     """
@@ -20,3 +23,22 @@ def accuracy(output, target, topk=(1,)):
             correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
+
+def plot(metric, label, color='b'):
+    """  Generates a plot of a given metric given along the epochs
+    """
+    epochs = range(len(metric))
+    plt.plot(epochs, metric, color, label=label)
+    plt.title(label)
+    plt.xticks(np.arange(0, len(epochs), 2.0))
+    plt.xlabel('Epochs')
+    plt.ylabel(label)
+    plt.legend()
+    plt.show()
+
+def plot_model(modelpath, attrname, label, color='b'):
+    """ Generates a plot of a given attribute from a model
+        Training, validation, test loss
+    """
+    model_cp = torch.load(pjoin(modelpath))
+    plot(model_cp[attrname], label, color)

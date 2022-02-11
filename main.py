@@ -1,22 +1,28 @@
+import os
+import sys
 import argparse
 import math
-import os
-from os.path import join as pjoin
-import copy
-
+import random
 from dataloader import get_cifar10, get_cifar100
-from vat import VATLoss
-from utils import accuracy
-from model.wrn import WideResNet
 from test import test_cifar10
+from utils import accuracy, plot, plot_model
+
+from model.wrn import WideResNet
+from train import train
 
 import torch
-import torch.optim as optim
 import torch.nn as nn
-from torch.utils.data import DataLoader
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.utils.data import DataLoader, Subset
 
+# dataloader.py:121: UserWarning UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach()
+# or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+import warnings
+warnings.filterwarnings("ignore")
 
 def main(args):
+    # load data
     if args.dataset == "cifar10":
         args.num_classes = 10
         labeled_dataset, unlabeled_dataset, test_dataset = get_cifar10(args,
@@ -25,7 +31,10 @@ def main(args):
         args.num_classes = 100
         labeled_dataset, unlabeled_dataset, test_dataset = get_cifar100(args,
                                                                         args.datapath)
-    args.epoch = math.ceil(args.total_iter / args.iter_per_epoch)
+    
+    # TODO decide how to split validation set
+    validation_dataset = Subset(unlabeled_dataset, random.sample(range(0, len(labeled_dataset)), args.num_validation))
+
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -37,83 +46,56 @@ def main(args):
                                        batch_size=args.train_batch,
                                        shuffle=True,
                                        num_workers=args.num_workers))
+
+    validation_loader = DataLoader(validation_dataset,
+                             batch_size=args.train_batch,
+                             shuffle=True,
+                             num_workers=args.num_workers)
+
     test_loader = DataLoader(test_dataset,
                              batch_size=args.test_batch,
                              shuffle=False,
                              num_workers=args.num_workers)
 
+    datasets = {
+        'labeled': labeled_dataset,
+        'unlabeled': unlabeled_dataset,
+        'validation': validation_dataset,
+        'test': test_dataset,
+    }
+    dataloaders = {
+        'labeled': labeled_loader,
+        'unlabeled': unlabeled_loader,
+        'validation': validation_loader,
+        'test': test_loader
+    }
+
+    args.epoch = math.ceil(args.total_iter / args.iter_per_epoch)
+
     model = WideResNet(args.model_depth,
-                       args.num_classes, widen_factor=args.model_width)
+                       args.num_classes, widen_factor=args.model_width, dropRate=args.drop_rate)
     model = model.to(device)
 
-    model_path = "models/obs"
 
-    if not os.path.isdir(model_path):
-        os.makedirs(model_path)
-
-    ############################################################################
-    # TODO: SUPPLY your code
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.wd)
+    # TODO scheduler for learning reate in VAT?
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.998)
     criterion = nn.CrossEntropyLoss()
-    ############################################################################
 
-    for epoch in range(args.epoch):
-        running_loss = 0
-        model.train()
-        for i in range(args.iter_per_epoch):
-            try:
-                x_l, y_l = next(labeled_loader)
-            except StopIteration:
-                labeled_loader = iter(DataLoader(labeled_dataset,
-                                                 batch_size=args.train_batch,
-                                                 shuffle=True,
-                                                 num_workers=args.num_workers))
-                x_l, y_l = next(labeled_loader)
+    # train model
+    #best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
 
-            try:
-                x_ul, _ = next(unlabeled_loader)
-            except StopIteration:
-                unlabeled_loader = iter(DataLoader(unlabeled_dataset,
-                                                   batch_size=args.train_batch,
-                                                   shuffle=True,
-                                                   num_workers=args.num_workers))
-                x_ul, _ = next(unlabeled_loader)
+    # test
+    test_cifar10(test_dataset, './model/best_model.pt')
+    
+    # %%
+    # plot training loss
+    # plot_model('./model/last_model.pt', 'training_losses', 'Training Loss')
+    # %%
+    # plot training loss
+    # plot_model('./model/last_model.pt', 'test_losses', 'Test Loss', color='r')
+    # %%
 
-            x_l, y_l = x_l.to(device), y_l.to(device)
-            x_ul = x_ul.to(device)
-            ####################################################################
-            # TODO: SUPPLY you code
-            optimizer.zero_grad()
-            # vat_loss = VATLoss(args.vat_xi, args.vat_eps, args.vat_iter)
-            vat_loss = VATLoss(args)
-            lds = vat_loss(model, x_ul)
-            output = model(x_l)
-            classification_loss = criterion(output, y_l)
-            loss = classification_loss + args.alpha * lds
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item()
-            ####################################################################
-        scheduler.step()
-        epoch_loss = running_loss / (args.iter_per_epoch)
-        print('Epoch: {} : Train Loss : {:.5f} '.format(epoch, epoch_loss))
-
-    checkpoint = {
-        'epoch': epoch,
-        'model_state_dict': copy.deepcopy(model.state_dict()),
-        'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
-        'loss': epoch_loss,
-        'model_depth': args.model_depth,
-        'num_classes': args.num_classes,
-        'model_width': args.model_width
-        # 'drop_rate': args.drop_rate
-    }
-    torch.save(checkpoint, pjoin(model_path, 'model1.pt'))
-    test_cifar10(test_loader, model_path)
-    # result = test_cifar10(test_loader, model_path)
-    # acc = accuracy(result, )
 
 
 if __name__ == "__main__":
@@ -157,9 +139,13 @@ if __name__ == "__main__":
                         help="VAT epsilon parameter")
     parser.add_argument("--vat-iter", default=1, type=int,
                         help="VAT iteration parameter")
-    # Add more arguments if you need them
-    # Describe them in help
-    # You can (and should) change the default values of the arguments
+    parser.add_argument("--drop-rate", type=int, default=0.3,
+                        help="drop out rate for wrn")
+    parser.add_argument('--num-validation', type=int,
+                        default=1000, help='Total number of validation samples')
+    parser.add_argument("--modelpath", default="./model/",
+                            type=str, help="Path to the persisted models")
+   
 
     args = parser.parse_args()
 
