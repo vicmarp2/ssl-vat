@@ -43,7 +43,7 @@ def test_cifar10(testdataset, filepath="./path/to/model.pth.tar"):
     model.eval()
     outputs = torch.empty((0, 10)).to(device)
     for x_test, _ in test_loader:
-        if torch.cuda.is_available():
+        with torch.no_grad():
             x_test = x_test.to(device)
             output_test = model(x_test)
             softmax_test = F.softmax(output_test, dim=1)
