@@ -16,6 +16,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 
+
 # dataloader.py:121: UserWarning UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach()
 # or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
 import warnings
@@ -84,16 +85,17 @@ def main(args):
 
     # train model
     #best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
+    train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
 
     # test
-    test_cifar10(test_dataset, './models/obs/best_model_cifar10.pt')
+    test_cifar10(test_dataset, './model/best_model.pt')
     
     # %%
     # plot training loss
-    # plot_model('./models/obs/last_model.pt', 'training_losses', 'Training Loss')
+    plot_model('./model/last_model.pt', 'training_losses', 'Training Loss')
     # %%
     # plot training loss
-    # plot_model('./models/obs/last_model.pt', 'test_losses', 'Test Loss', color='r')
+    plot_model('./model/last_model.pt', 'test_losses', 'Test Loss', color='r')
     # %%
 
 
@@ -143,7 +145,7 @@ if __name__ == "__main__":
                         help="drop out rate for wrn")
     parser.add_argument('--num-validation', type=int,
                         default=1000, help='Total number of validation samples')
-    parser.add_argument("--modelpath", default="./models/obs/",
+    parser.add_argument("--modelpath", default="./model/",
                             type=str, help="Path to the persisted models")
    
 

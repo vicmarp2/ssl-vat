@@ -5,7 +5,7 @@ import copy
 from os.path import join as pjoin
 
 from dataloader import get_cifar10, get_cifar100
-from utils import accuracy, alpha_weight, plot
+from utils import accuracy, plot_model, plot
 
 import torch
 import torch.nn as nn
@@ -14,12 +14,60 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from utils import accuracy
 from vat import VATLoss
+import matplotlib.pyplot as plt
+import numpy as np
+from torch.utils.tensorboard import SummaryWriter
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def matplotlib_imshow(img, one_channel=False):
+    if one_channel:
+        img = img.mean(dim=0)
+    img = img / 2 + 0.5     # unnormalize
+    npimg = img.squeeze(0).cuda().detach().cpu()
+    if one_channel:
+        plt.imshow(npimg, cmap="Greys")
+    else:
+        plt.imshow(npimg.T)
+
+def images_to_probs(net, images):
+    '''
+    Generates predictions and corresponding probabilities from a trained
+    network and a list of images
+    '''
+    output = net(images)
+    # convert output probabilities to predicted class
+    _, preds_tensor = torch.max(output, 1)
+    preds = np.squeeze(preds_tensor.cpu().numpy())
+    return preds, [F.softmax(el, dim=0)[i].item() for i, el in zip(preds, output)]
+
+def plot_classes_preds(net, images, labels):
+    '''
+    Generates matplotlib Figure using a trained network, along with images
+    and labels from a batch, that shows the network's top prediction along
+    with its probability, alongside the actual label, coloring this
+    information based on whether the prediction was correct or not.
+    Uses the "images_to_probs" function.
+    '''
+    preds, probs = images_to_probs(net, images)
+    # plot the images in the batch, along with predicted and true labels
+    fig = plt.figure(figsize=(12, 48))
+    for idx in np.arange(4):
+        ax = fig.add_subplot(1, 4, idx+1, xticks=[], yticks=[])
+        matplotlib_imshow(images[idx], one_channel=True)
+        #ax.set_title("{0}, {1:.1f}%\n(label: {2})".format(
+        #    classes[preds[idx]],
+        #    probs[idx] * 100.0,
+        #    classes[labels[idx]]),
+        #            color=("green" if preds[idx]==labels[idx].item() else "red"))
+    return fig
+
+# default `log_dir` is "runs" - we'll be more specific here
+writer = SummaryWriter('runs/cifar10')
 
 
 def train (model, datasets, dataloaders, modelpath,
           criterion, optimizer, scheduler, validation, test, args):
 
-    model_subpath = 'cifar10' if args.num_classes == 10 else 'cifar100'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     training_loss = 1e8
     validation_loss = 1e8
@@ -64,7 +112,8 @@ def train (model, datasets, dataloaders, modelpath,
     test_losses = []
     for epoch in range(args.epoch):
         running_loss = 0.0
-        model.train()
+        #model.train()
+        model.eval()
         for i in range(args.iter_per_epoch):
             try:
                 x_l, y_l = next(labeled_loader)
@@ -137,7 +186,7 @@ def train (model, datasets, dataloaders, modelpath,
                     'model_width' : args.model_width,
                     'drop_rate' : args.drop_rate
                 }
-                torch.save(best_model, pjoin(modelpath, 'best_model_', model_subpath, '.pt'))
+                torch.save(best_model, pjoin(modelpath, 'best_model.pt'))
                 print('Best model updated with validation loss : {:.5f} '.format(validation_loss))
         # update learning rate
         scheduler.step()
@@ -145,7 +194,7 @@ def train (model, datasets, dataloaders, modelpath,
         # Check test error with current model over test dataset
         running_loss = 0.0
         if test:
-            total_accuracy = []
+            #total_accuracy = []
             test_loss = 0.0
             model.eval()
             for x_test, y_test in test_loader:
@@ -154,14 +203,24 @@ def train (model, datasets, dataloaders, modelpath,
                     output_test = model(x_test)                              
                     loss = criterion(output_test, y_test)
                     running_loss += loss.item() * x_test.size(0)
-                    acc = accuracy(output_test, y_test)
-                    total_accuracy.append(sum(acc))
+                    # ...log the running loss
+                    writer.add_scalar('training loss',
+                                      running_loss / 1000,
+                                      epoch * len(test_loader) + i)
+
+                    # ...log a Matplotlib Figure showing the model's predictions on a
+                    # random mini-batch
+                    writer.add_figure('predictions vs. actuals',
+                                      plot_classes_preds(model, x_test, y_test),
+                                      global_step=epoch * len(test_loader) + i)
+                    #acc = accuracy(output_test, y_test)
+                    #total_accuracy.append(sum(acc))
             test_loss = running_loss / len(test_dataset)
             test_losses.append(test_loss)
             print('Epoch: {} : Test Loss : {:.5f} '.format(
                 epoch, test_loss))
-            print('Accuracy of the network on test images: %d %%' % (
-                sum(total_accuracy)/len(total_accuracy)))
+            #print('Accuracy of the network on test images: %d %%' % (
+            #    sum(total_accuracy)/len(total_accuracy)))
 
     last_model = {
         'epoch': args.epoch,
@@ -175,7 +234,7 @@ def train (model, datasets, dataloaders, modelpath,
         'model_width' : args.model_width,
         'drop_rate' : args.drop_rate
     }
-    torch.save(last_model, pjoin(modelpath, 'last_model_', model_subpath, '.pt'))
+    torch.save(last_model, pjoin(modelpath, 'last_model.pt'))
     if validation:
         # recover better weights from validation
         model.load_state_dict(best_model['model_state_dict'])

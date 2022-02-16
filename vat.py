@@ -1,8 +1,8 @@
-
-
 import torch
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 def L2Norm(r):
     r_reshaped = r.view(r.shape[0], -1, *(1 for _ in range(r.dim() - 2)))
@@ -36,8 +36,18 @@ class VATLoss(nn.Module):
 
         # calc loss
         r_adv = r * self.eps
-        advExamples = model(x + r_adv)
+        advImage = x + r_adv
+        advExamples = model(advImage)
         advPredictions = F.softmax(advExamples, dim=1)
         loss = F.kl_div(advPredictions, pred)
+
+        #figure, ax = plt.subplots(1, 2, figsize=(32, 32))
+        #ax[0].imshow(x.squeeze(0).cuda().detach().cpu())
+        #ax[0].set_title('Clean Example', fontsize=20)
+        # ax[1].imshow(r_adv)
+        # ax[1].set_title('Perturbation', fontsize=20)
+        #ax[1].imshow(advImage.squeeze(0).cuda().detach().cpu())
+        #ax[1].set_title('Adversarial Example', fontsize=20)
+        #plt.show()
 
         return loss
