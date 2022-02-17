@@ -124,7 +124,6 @@ def train (model, datasets, dataloaders, modelpath,
             epoch, validation_loss))
 
             if len(best_model['validation_losses']) == 0 or validation_loss < best_model['validation_losses'][-2]:
-                # TODO save all arguments?
                 best_model = {
                     'epoch': epoch,
                     'model_state_dict': copy.deepcopy(model.state_dict()),
@@ -137,7 +136,7 @@ def train (model, datasets, dataloaders, modelpath,
                     'model_width' : args.model_width,
                     'drop_rate' : args.drop_rate
                 }
-                torch.save(best_model, pjoin(modelpath, 'best_model_', model_subpath, '.pt'))
+                torch.save(best_model, pjoin(modelpath, 'best_model_{}.pt'.format(model_subpath)))
                 print('Best model updated with validation loss : {:.5f} '.format(validation_loss))
         # update learning rate
         scheduler.step()
@@ -175,7 +174,7 @@ def train (model, datasets, dataloaders, modelpath,
         'model_width' : args.model_width,
         'drop_rate' : args.drop_rate
     }
-    torch.save(last_model, pjoin(modelpath, 'last_model_', model_subpath, '.pt'))
+    torch.save(last_model, pjoin(modelpath, 'last_model_{}.pt'.format(model_subpath)))
     if validation:
         # recover better weights from validation
         model.load_state_dict(best_model['model_state_dict'])
