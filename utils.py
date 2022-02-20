@@ -2,6 +2,7 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np 
 from os.path import join as pjoin
+from torch.utils.data import DataLoader, Subset
 
 def accuracy(output, target, topk=(1,)):
     """
@@ -42,3 +43,26 @@ def plot_model(modelpath, attrname, label, color='b'):
     """
     model_cp = torch.load(pjoin(modelpath))
     plot(model_cp[attrname], label, color)
+
+
+def validation_set(base_dataset, num_validation, num_classes):
+    '''
+    args: 
+        base_dataset : (torch.utils.data.Dataset)
+    returns : (torch.utils.data.Dataset) subset 
+    Description:
+        This function samples even ammount of images from each class
+        from the base dataset given up to the size of the validation dataset
+    '''
+    labels = base_dataset.targets
+    label_per_class = num_validation // num_classes
+    labels = np.array(labels)
+    validation_idx = []
+    for i in range(num_classes):
+        idx = np.where(labels == i)[0]
+        idx = np.random.choice(idx, label_per_class, False)
+        validation_idx.extend(idx)
+    validation_idx = np.array(validation_idx)
+    np.random.shuffle(validation_idx)
+    assert len(validation_idx) == num_validation
+    return Subset(base_dataset, validation_idx)
