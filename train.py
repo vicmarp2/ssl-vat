@@ -2,10 +2,11 @@ import sys
 import argparse
 import math
 import copy
+import os
 from os.path import join as pjoin
 
 from dataloader import get_cifar10, get_cifar100
-from utils import accuracy, plot_model, plot
+from utils import accuracy, plot_model
 
 import torch
 import torch.nn as nn
@@ -18,6 +19,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def matplotlib_imshow(img, one_channel=False):
     if one_channel:
         img = img.mean(dim=0)
@@ -49,7 +51,7 @@ def plot_classes_preds(net, images, labels):
     '''
     preds, probs = images_to_probs(net, images)
     # plot the images in the batch, along with predicted and true labels
-    fig = plt.figure(figsize=(12, 48))
+    fig = plt.figure(figsize=(32, 32))
     for idx in np.arange(4):
         ax = fig.add_subplot(1, 4, idx+1, xticks=[], yticks=[])
         matplotlib_imshow(images[idx], one_channel=True)
@@ -61,13 +63,15 @@ def plot_classes_preds(net, images, labels):
     return fig
 
 # default `log_dir` is "runs" - we'll be more specific here
-writer = SummaryWriter('runs/cifar10')
+#writer = SummaryWriter('runs/cifar10')
 
 def train (model, datasets, dataloaders, modelpath,
           criterion, optimizer, scheduler, validation, test, args):
 
+    if not os.path.isdir(modelpath):
+        os.makedirs(modelpath)
     model_subpath = 'cifar10' if args.num_classes == 10 else 'cifar100'
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     if validation:
         best_model = {
@@ -98,17 +102,12 @@ def train (model, datasets, dataloaders, modelpath,
     print('-' * 20)
     model.train()
     # train
-    # STAGE ONE -> epoch < args.t1
-    # alpha for pseudolabeled loss = 0, we just train over the labeled data
-    # STAGE TWO -> args.t1 <= epoch <= args.t2
-    # alpha gets calculated for weighting the pseudolabeled data
-    # we train over labeled and pseudolabeled data
+
     training_losses = []
     validation_losses = []
     test_losses = []
     for epoch in range(args.epoch):
         running_loss = 0.0
-        model.train()
         for i in range(args.iter_per_epoch):
             try:
                 x_l, y_l = next(labeled_loader)
@@ -140,6 +139,7 @@ def train (model, datasets, dataloaders, modelpath,
             classification_loss = criterion(output, y_l)
             loss = classification_loss + args.alpha * lds
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.max_grad_norm)
             optimizer.step()
 
             running_loss += loss.item()
@@ -180,8 +180,9 @@ def train (model, datasets, dataloaders, modelpath,
                     'model_width' : args.model_width,
                     'drop_rate' : args.drop_rate
                 }
-                torch.save(best_model, pjoin(modelpath, 'best_model_{}.pt'.format(model_subpath)))
+                torch.save(best_model, pjoin(modelpath, 'best_model_{}_{}_{}_{}.pt'.format(model_subpath, args.num_labeled, args.vat_xi, args.vat_eps)))
                 print('Best model updated with validation loss : {:.5f} '.format(validation_loss))
+            model.train()
         # update learning rate
         scheduler.step()
 
@@ -197,7 +198,7 @@ def train (model, datasets, dataloaders, modelpath,
                     output_test = model(x_test)                              
                     loss = criterion(output_test, y_test)
                     running_loss += loss.item() * x_test.size(0)
-                     # ...log the running loss
+                    ''' # ...log the running loss
                     writer.add_scalar('training loss',
                                       running_loss / 1000,
                                       epoch * len(test_loader) + i)
@@ -206,7 +207,7 @@ def train (model, datasets, dataloaders, modelpath,
                     # random mini-batch
                     writer.add_figure('predictions vs. actuals',
                                       plot_classes_preds(model, x_test, y_test),
-                                      global_step=epoch * len(test_loader) + i)
+                                      global_step=epoch * len(test_loader) + i)'''
                     acc = accuracy(output_test, y_test)
                     total_accuracy.append(sum(acc))
             test_loss = running_loss / len(test_dataset)
@@ -228,7 +229,7 @@ def train (model, datasets, dataloaders, modelpath,
         'model_width' : args.model_width,
         'drop_rate' : args.drop_rate
     }
-    torch.save(last_model, pjoin(modelpath, 'last_model_{}.pt'.format(model_subpath)))
+    torch.save(best_model, pjoin(modelpath, 'last_model_{}_{}_{}_{}.pt'.format(model_subpath, args.num_labeled, args.vat_xi, args.vat_eps)))
     if validation:
         # recover better weights from validation
         model.load_state_dict(best_model['model_state_dict'])

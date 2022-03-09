@@ -6,6 +6,8 @@ from model.wrn import WideResNet
 import torch.nn.functional as F
 from utils import accuracy
 from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
+import numpy as np
 
 def test_cifar10(testdataset, filepath="./path/to/model.pth.tar"):
     '''
@@ -25,7 +27,7 @@ def test_cifar10(testdataset, filepath="./path/to/model.pth.tar"):
     # CREATE LOADER 
    
     test_loader = DataLoader(testdataset,
-                             batch_size=100,
+                             batch_size=64,
                              shuffle=False,
                              num_workers=1)
     
@@ -46,6 +48,22 @@ def test_cifar10(testdataset, filepath="./path/to/model.pth.tar"):
             x_test = x_test.to(device)
             output_test = model(x_test)
             softmax_test = F.softmax(output_test, dim=1)
+
+            '''figure, ax = plt.subplots(1, 2, figsize=(32, 32))
+            ax[0].imshow(x_test.squeeze(0).cuda().detach().cpu())
+            ax[0].set_title('Clean Example', fontsize=20)
+            ax[1].imshow(x_test)
+            ax[1].set_title('Perturbation', fontsize=20)
+            ax[1].imshow(output_test.squeeze(0).cuda().detach().cpu())
+            ax[1].set_title('Adversarial Example', fontsize=20)
+            plt.show()'''
+
+            #x = np.squeeze(x_test[1].detach().cpu().numpy())
+            #y = np.squeeze(output_test[1].detach().cpu().numpy())
+            #plt.imshow(x.T)
+            #plt.imshow(y.T)
+            #plt.show()
+
             outputs = torch.cat((outputs, softmax_test))
     return outputs
     '''
@@ -76,7 +94,7 @@ def test_cifar100(testdataset, filepath="./path/to/model.pth.tar"):
     # CREATE LOADER 
    
     test_loader = DataLoader(testdataset,
-                             batch_size=100,
+                             batch_size=64,
                              shuffle=False,
                              num_workers=1)
     

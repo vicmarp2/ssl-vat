@@ -4,7 +4,7 @@ import argparse
 import math
 from dataloader import get_cifar10, get_cifar100
 from test import test_cifar10, test_cifar100
-from utils import plot, plot_model, test_accuracy, validation_set
+from utils import plot_model, test_error, validation_set
 
 from model.wrn import WideResNet
 from train import train
@@ -82,33 +82,31 @@ def main(args):
     criterion = nn.CrossEntropyLoss()
 
     # train model
-    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
+    seed = 151
+    torch.manual_seed(seed)
+    #train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
 
     # test
-    # test_cifar10(test_dataset, './models/obs/best_model_cifar10.pt')
+    #test_cifar10(test_dataset, './models/best_model_cifar10_4000_0.6_8.pt')
     
-    # get test accuracy
-    # test_accuracy(test_dataset, './models/obs/best_model_cifar10.pt')
+    # get test error
+    #test_error(test_dataset, './models/best_model_cifar100_10000_0.6_8.pt')
 
     # %%
-    # plot training loss
-    # plot_model('./models/obs/last_model.pt', 'training_losses', 'Training Loss')
-    # %%
-    # plot training loss
-    # plot_model('./models/obs/last_model.pt', 'test_losses', 'Test Loss', color='r')
-    # %%
+    # plot losses
+    plot_model('./models/last_model_cifar100_10000_0.6_8.pt')
 
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Virtual adversarial training \
                                         of CIFAR10/100 using with pytorch")
-    parser.add_argument("--dataset", default="cifar10",
+    parser.add_argument("--dataset", default="cifar100",
                         type=str, choices=["cifar10", "cifar100"])
     parser.add_argument("--datapath", default="./data/",
                         type=str, help="Path to the CIFAR-10/100 dataset")
     parser.add_argument('--num-labeled', type=int,
-                        default=4000, help='Total number of labeled samples')
+                        default=2500, help='Total number of labeled samples')
     parser.add_argument("--lr", default=0.03, type=float,
                         help="The initial learning rate")
     parser.add_argument("--momentum", default=0.9, type=float,
@@ -122,27 +120,29 @@ if __name__ == "__main__":
                         help='train batchsize')
     parser.add_argument('--test-batch', default=64, type=int,
                         help='train batchsize')
-    parser.add_argument('--total-iter', default=1024 * 512, type=int,
+    parser.add_argument('--total-iter', default=1024*100, type=int,
                         help='total number of iterations to run')
     parser.add_argument('--iter-per-epoch', default=1024, type=int,
                         help="Number of iterations to run per epoch")
     parser.add_argument('--num-workers', default=1, type=int,
                         help="Number of workers to launch during training")
-    parser.add_argument('--alpha', type=float, default=1.0, metavar='ALPHA',
+    parser.add_argument('--alpha', type=float, default=1, metavar='ALPHA',
                         help='regularization coefficient (default: 0.01)')
+    parser.add_argument('--max-grad-norm', default=2, type=float,
+                        help='Maximum gradient norm allowed for gradient clipping')
     parser.add_argument("--dataout", type=str, default="./path/to/output/",
                         help="Path to save log files")
     parser.add_argument("--model-depth", type=int, default=28,
                         help="model depth for wide resnet")
     parser.add_argument("--model-width", type=int, default=2,
                         help="model width for wide resnet")
-    parser.add_argument("--vat-xi", default=10.0, type=float,
+    parser.add_argument("--vat-xi", default=0.6, type=float,
                         help="VAT xi parameter")
-    parser.add_argument("--vat-eps", default=1.0, type=float,
+    parser.add_argument("--vat-eps", default=5, type=float,
                         help="VAT epsilon parameter")
     parser.add_argument("--vat-iter", default=1, type=int,
                         help="VAT iteration parameter")
-    parser.add_argument("--drop-rate", type=int, default=0.3,
+    parser.add_argument("--drop-rate", type=int, default=0.0,
                         help="drop out rate for wrn")
     parser.add_argument('--num-validation', type=int,
                         default=1000, help='Total number of validation samples')
