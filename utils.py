@@ -21,6 +21,8 @@ def accuracy(output, target, topk=(1,)):
         _, pred = output.topk(maxk, 1, True, True)
         pred = pred.t()
         correct = pred.eq(target.view(1, -1).expand_as(pred))
+        cnt = 0
+        plt.figure(figsize=(8, 10))
 
         res = []
         for k in topk:
@@ -28,24 +30,19 @@ def accuracy(output, target, topk=(1,)):
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
-def plot(metric, label, color='b'):
-    """  Generates a plot of a given metric given along the epochs
-    """
-    epochs = range(len(metric))
-    plt.plot(epochs, metric, color, label=label)
-    plt.title(label)
-    plt.xticks(np.arange(0, len(epochs), 2.0))
-    plt.xlabel('Epochs')
-    plt.ylabel(label)
-    plt.legend()
-    plt.show()
-
-def plot_model(modelpath, attrname, label, color='b'):
+def plot_model(modelpath, color='b'):
     """ Generates a plot of a given attribute from a model
         Training, validation, test loss
     """
     model_cp = torch.load(pjoin(modelpath))
-    plot(model_cp[attrname], label, color)
+    plt.plot(model_cp['training_losses'])
+    plt.plot(model_cp['validation_losses'])
+    plt.title('Loss Curves')
+    plt.ylabel('Loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'val'], loc='upper left')
+    plt.show()
+
 
 
 def validation_set(base_dataset, num_validation, num_classes):
@@ -71,7 +68,7 @@ def validation_set(base_dataset, num_validation, num_classes):
     return Subset(base_dataset, validation_idx)
 
 
-def test_accuracy(testdataset, filepath = "./path/to/model.pth.tar"):
+def test_error(testdataset, filepath = "./path/to/model.pth.tar"):
     # CREATE LOADER 
    
     test_loader = DataLoader(testdataset,
@@ -97,6 +94,6 @@ def test_accuracy(testdataset, filepath = "./path/to/model.pth.tar"):
             output_test = model(x_test)
             acc = accuracy(output_test, y_test)
             total_accuracy.append(sum(acc))
-    print('Accuracy of the network on test images: %d %%' % (
-                sum(total_accuracy)/len(total_accuracy)))
-    
+    acc = float(sum(total_accuracy) / len(total_accuracy))
+    print('Accuracy of the network on test images: %d %%' % (acc))
+    print("Error on test set:", (1 - acc * 0.01) * 100)

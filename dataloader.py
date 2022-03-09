@@ -32,12 +32,12 @@ def x_u_split(args, labels):
 
 def get_cifar10(args, root):
     transform_labeled = transforms.Compose([
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomCrop(size=32,
-                              padding=int(32*0.125),
-                              padding_mode='reflect'),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=cifar10_mean, std=cifar10_std)
+        #transforms.RandomHorizontalFlip(),
+        #transforms.RandomCrop(size=32,
+        #                      padding=int(32*0.125),
+        #                      padding_mode='reflect'),
+        transforms.ToTensor()
+        #transforms.Normalize(mean=cifar10_mean, std=cifar10_std)
     ])
     transform_val = transforms.Compose([
         transforms.ToTensor(),
