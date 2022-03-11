@@ -33,7 +33,7 @@ class VATLoss(nn.Module):
         for _ in range(self.vat_iter):
             r.requires_grad_()
             advExamples = x + self.xi * r
-            advPredictions = F.log_softmax(model(advExamples), dim=1)  #Log to eliminate the negative KL divergence
+            advPredictions = F.log_softmax(model(advExamples), dim=1)
             adv_distance = F.kl_div(advPredictions, pred, reduction='batchmean')
             adv_distance.backward()
             r = L2Norm(r.grad)
